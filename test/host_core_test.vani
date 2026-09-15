@@ -1,0 +1,43 @@
+// Host-runnable validation for the ieee80211 package's core-only (no
+// self-tests) subset. Run with:
+//   vanic run test/host_core_test.vani
+//   vanic run test/host_core_test.vani --backend=llvm
+//
+// Drives every function through at least one real call, proving
+// core.vani by itself is sufficient to compute real, correct results,
+// not just that it parses. src/lib.vani's own self-tests cover the
+// exhaustive positive/negative cases; this is a smoke test.
+
+use "../src/core.vani";
+
+fn main() -> i64 {
+  let rsn: [u8; 22] = [0 as u8; 22];
+  let rsn_len: i64 = rsn_ie_build_wpa2_psk_ccmp(mut ref rsn);
+  assert rsn_len == 22;
+  assert rsn[0] == (0x30 as u8);
+  assert rsn[1] == (20 as u8);
+
+  let own_mac: [u8; 6] = [0x02 as u8, 0x00 as u8, 0x00 as u8, 0x00 as u8, 0x00 as u8, 0x02 as u8];
+  let bssid: [u8; 6] = [0x02 as u8, 0x00 as u8, 0x00 as u8, 0x00 as u8, 0x00 as u8, 0x01 as u8];
+  let ssid: [u8; 32] = zero32_bytes_80211();
+  ssid[0] = 0x74 as u8;
+  ssid[1] = 0x65 as u8;
+  ssid[2] = 0x73 as u8;
+  ssid[3] = 0x74 as u8;
+
+  let preq: [u8; 64] = [0 as u8; 64];
+  let preq_len: i64 = probe_request_build(ref own_mac, ref ssid, 4, mut ref preq);
+  assert preq_len == 36;
+  assert preq[0] == ((FC_STYPE_PROBE_REQ & (255 as i64)) as u8);
+
+  let areq: [u8; 30] = [0 as u8; 30];
+  let areq_len: i64 = auth_request_build(ref bssid, ref own_mac, mut ref areq);
+  assert areq_len == 30;
+
+  let assoc: [u8; 90] = [0 as u8; 90];
+  let assoc_len: i64 = assoc_request_build(ref bssid, ref own_mac, ref ssid, 4, ref rsn, mut ref assoc);
+  assert assoc_len == 62;
+
+  print "ieee80211 core: RSN IE + probe/auth/assoc request build round trip (no self-test) PASS";
+  return 0;
+}

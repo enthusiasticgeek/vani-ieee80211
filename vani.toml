@@ -1,0 +1,12 @@
+[package]
+name        = "ieee80211"
+version     = "0.1.0"
+entry       = "src/lib.vani"
+authors     = "enthusiasticgeek"
+license     = "Apache-2.0"
+description = "IEEE 802.11 management-frame build/parse (Probe Request/Response, Open System Authentication, Association Request/Response) and the WPA2-PSK/CCMP RSN Information Element, pure vani, hardware-agnostic and heap-free -- fixed-size array parameters, no allocator, no extern \"C\" dependency, no RF/USB dependency of any kind. Extracted from DhruvaOS's WPA2 4-way-handshake work: real association with an access point has to complete before EAPOL-Key even starts, a gap the 4-way handshake state machine's own header comment already called out as separately scoped."
+registry    = "kosh"
+
+[deps]
+# Intentionally EMPTY -- pure byte-layout logic, no crypto/hash
+# dependency at all (unlike vani-aes/vani-csprng).

@@ -1,0 +1,11 @@
+// Host-runnable validation for the ieee80211 package. Run with:
+//   vanic run test/host_test.vani
+//   vanic run test/host_test.vani --backend=llvm
+
+use "../src/lib.vani";
+
+fn main() -> i64 {
+  assert ieee80211_self_test() == 1;
+  print "ieee80211: all self-tests PASS";
+  return 0;
+}
