@@ -47,10 +47,14 @@ const WLAN_STATUS_SUCCESS: i64 = 0;
 // checks below rather than silently truncated.
 const FRAME_BUF_LEN: i64 = 256;
 
+#[bounded_stack(bytes=38)]
+#[wcet(cycles=18)]
 fn zero6_bytes() -> [u8; 6] {
   return [0 as u8; 6];
 }
 
+#[bounded_stack(bytes=64)]
+#[wcet(cycles=70)]
 fn zero32_bytes_80211() -> [u8; 32] {
   return [0 as u8; 32];
 }
@@ -61,6 +65,7 @@ fn zero32_bytes_80211() -> [u8; 32] {
 // used). All multi-byte fields are little-endian on the wire.
 struct Mac80211Hdr { frame_control: i64, duration: i64, seq_ctrl: i64 }
 
+#[bounded_stack(bytes=136)]
 fn mac_header_parse(buf: ref [u8; 256], addr1_out: mut ref [u8; 6], addr2_out: mut ref [u8; 6], addr3_out: mut ref [u8; 6]) -> Mac80211Hdr {
   let frame_control: i64 = (buf[0] as i64) | ((buf[1] as i64) << 8);
   let duration: i64 = (buf[2] as i64) | ((buf[3] as i64) << 8);
@@ -83,6 +88,7 @@ fn mac_header_parse(buf: ref [u8; 256], addr1_out: mut ref [u8; 6], addr2_out: m
 // out of the caller's own intended region.
 struct IeFindResult { found: i64, data_off: i64, data_len: i64 }
 
+#[bounded_stack(bytes=200)]
 fn ie_find(buf: ref [u8; 256], ies_off: i64, ies_len: i64, target_eid: i64) -> IeFindResult {
   let pos: i64 = ies_off;
   let end: i64 = ies_off + ies_len;
@@ -109,6 +115,8 @@ fn ie_find(buf: ref [u8; 256], ies_off: i64, ies_len: i64, target_eid: i64) -> I
 // appends them conditionally). Fixed 22-byte output, matching a real
 // worked example derived from these same confirmed constants:
 // 30 14 01 00 00 0F AC 04 01 00 00 0F AC 04 01 00 00 0F AC 02 00 00.
+#[bounded_stack(bytes=48)]
+#[wcet(cycles=138)]
 fn rsn_ie_build_wpa2_psk_ccmp(out: mut ref [u8; 22]) -> i64 {
   out[0] = 0x30 as u8;
   out[1] = 20 as u8;
@@ -147,6 +155,7 @@ fn rsn_ie_build_wpa2_psk_ccmp(out: mut ref [u8; 22]) -> i64 {
 // function answers). Bounds pairwise/AKM counts to 4 each -- both
 // generous for any real AP and small enough to keep every array access
 // provably within the 256-byte receive buffer.
+#[bounded_stack(bytes=256)]
 fn rsn_ie_supports_wpa2_psk_ccmp(buf: ref [u8; 256], data_off: i64, data_len: i64) -> i64 {
   if data_len < 8 { return 0; }
   if !(buf[data_off + 2] == (0x00 as u8) && buf[data_off + 3] == (0x0f as u8) && buf[data_off + 4] == (0xac as u8) && buf[data_off + 5] == (0x04 as u8)) {
@@ -201,6 +210,7 @@ const PROBE_REQ_MAX_LEN: i64 = 64;
 // itself defines) -- real rate negotiation beyond "the AP sees at
 // least one rate it also supports" is out of this package's own scope.
 // Returns the actual frame length used (24 + 2+ssid_len + 2+4).
+#[bounded_stack(bytes=134)]
 fn probe_request_build(own_mac: ref [u8; 6], ssid: ref [u8; 32], ssid_len: i64, out: mut ref [u8; 64]) -> i64 {
   let broadcast: [u8; 6] = [0xff as u8; 6];
   out[0] = (FC_STYPE_PROBE_REQ & (255 as i64)) as u8;
@@ -246,6 +256,7 @@ struct ProbeRespInfo { ok: i64, ssid_len: i64, has_rsn: i64 }
 // IEs begin. Extracts the SSID (so the caller can confirm this is
 // really the network it asked for, not a same-channel neighbor) and
 // whether a WPA2-PSK/CCMP-compatible RSN IE is present.
+#[bounded_stack(bytes=536)]
 fn probe_response_parse(buf: ref [u8; 256], frame_len: i64, ssid_out: mut ref [u8; 32]) -> ProbeRespInfo {
   if frame_len < 36 {
     return ProbeRespInfo { ok: 0, ssid_len: 0, has_rsn: 0 };
@@ -283,6 +294,7 @@ fn probe_response_parse(buf: ref [u8; 256], frame_len: i64, ssid_out: mut ref [u
 // a request, present for fixed-field-layout symmetry with the
 // response), no Challenge Text (that IE only appears for Shared Key
 // authentication, algorithm 1). Fixed 30-byte frame.
+#[bounded_stack(bytes=80)]
 fn auth_request_build(bssid: ref [u8; 6], own_mac: ref [u8; 6], out: mut ref [u8; 30]) -> i64 {
   out[0] = (FC_STYPE_AUTH & (255 as i64)) as u8;
   out[1] = ((FC_STYPE_AUTH >> 8) & (255 as i64)) as u8;
@@ -312,6 +324,8 @@ fn auth_request_build(bssid: ref [u8; 6], own_mac: ref [u8; 6], out: mut ref [u8
 // (a different algorithm, an out-of-sequence transaction number, or a
 // non-zero status) is treated as a real authentication failure, not
 // silently accepted.
+#[bounded_stack(bytes=112)]
+#[wcet(cycles=126)]
 fn auth_response_parse(buf: ref [u8; 256], frame_len: i64) -> i64 {
   if frame_len < 30 { return 0; }
   let algorithm: i64 = (buf[24] as i64) | ((buf[25] as i64) << 8);
@@ -336,6 +350,7 @@ const ASSOC_REQ_MAX_LEN: i64 = 90;
 // taken as a parameter rather than called internally so a caller could
 // substitute a different negotiated IE without this function needing
 // to change). Returns the actual frame length used.
+#[bounded_stack(bytes=184)]
 fn assoc_request_build(bssid: ref [u8; 6], own_mac: ref [u8; 6], ssid: ref [u8; 32], ssid_len: i64, rsn_ie: ref [u8; 22], out: mut ref [u8; 90]) -> i64 {
   out[0] = (FC_STYPE_ASSOC_REQ & (255 as i64)) as u8;
   out[1] = ((FC_STYPE_ASSOC_REQ >> 8) & (255 as i64)) as u8;
@@ -396,6 +411,8 @@ struct AssocRespInfo { ok: i64, status_code: i64, association_id: i64 }
 // every subsequent data frame's own Duration/ID-adjacent addressing
 // (out of THIS package's own scope -- CCMP data-frame handling is
 // vani-aes/AES-CCMP's own job).
+#[bounded_stack(bytes=144)]
+#[wcet(cycles=88)]
 fn assoc_response_parse(buf: ref [u8; 256], frame_len: i64) -> AssocRespInfo {
   if frame_len < 30 {
     return AssocRespInfo { ok: 0, status_code: 0 - 1, association_id: 0 };
@@ -407,6 +424,8 @@ fn assoc_response_parse(buf: ref [u8; 256], frame_len: i64) -> AssocRespInfo {
   return AssocRespInfo { ok: ok, status_code: status_code, association_id: association_id };
 }
 
+#[bounded_stack(bytes=288)]
+#[wcet(cycles=518)]
 fn zero256_bytes_80211() -> [u8; 256] {
   return [0 as u8; 256];
 }
@@ -418,6 +437,7 @@ fn zero256_bytes_80211() -> [u8; 256] {
 // as a real caller would find it via ie_find) -- plus two negative
 // cases: group cipher swapped to TKIP, and AKM swapped to
 // unspecified-802.1X (suite type 1, not PSK's 2).
+#[bounded_stack(bytes=1260)]
 fn rsn_ie_self_test() -> i64 {
   let ok: i64 = 1;
 
@@ -479,6 +499,7 @@ fn rsn_ie_self_test() -> i64 {
 // attacker-controlled frames -- returns not-found (not a crash or an
 // out-of-bounds read) for an IE whose own claimed Length would run
 // past the caller-supplied `ies_len` bound.
+#[bounded_stack(bytes=1086)]
 fn ie_find_self_test() -> i64 {
   let ok: i64 = 1;
   let buf: [u8; 256] = zero256_bytes_80211();
@@ -540,6 +561,7 @@ fn ie_find_self_test() -> i64 {
 // builders, so this test doesn't just check build+parse agree with
 // each other -- it checks parse against independently-placed bytes)
 // and confirms mac_header_parse recovers every field exactly.
+#[bounded_stack(bytes=764)]
 fn mac_header_self_test() -> i64 {
   let ok: i64 = 1;
   let buf: [u8; 256] = zero256_bytes_80211();
@@ -594,6 +616,7 @@ fn mac_header_self_test() -> i64 {
 // entirely (a real open/WEP network's own Probe Response), confirming
 // has_rsn correctly reads as 0 rather than some stale/uninitialized
 // value.
+#[bounded_stack(bytes=1334)]
 fn probe_response_self_test() -> i64 {
   let ok: i64 = 1;
 
@@ -655,6 +678,7 @@ fn probe_response_self_test() -> i64 {
 // refused), and a wrong Transaction Sequence Number (a malformed or
 // out-of-sequence reply that must NOT be treated as success just
 // because Status Code happens to read as 0).
+#[bounded_stack(bytes=1210)]
 fn auth_self_test() -> i64 {
   let ok: i64 = 1;
 
@@ -703,6 +727,7 @@ fn auth_self_test() -> i64 {
 // embedded RSN IE, byte-exact) then assoc_response_parse against a
 // synthetic success (association ID 5) and a synthetic refusal
 // (non-zero status).
+#[bounded_stack(bytes=1148)]
 fn assoc_self_test() -> i64 {
   let ok: i64 = 1;
 
@@ -754,6 +779,7 @@ fn assoc_self_test() -> i64 {
   return ok;
 }
 
+#[bounded_stack(bytes=1430)]
 fn ieee80211_self_test() -> i64 {
   let ok: i64 = 1;
   if rsn_ie_self_test() != 1 { ok = 0; }
